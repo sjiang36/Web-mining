@@ -1,0 +1,144 @@
+# -*- coding: utf-8 -*-
+"""
+Created on Tue Mar  3 16:51:08 2020
+
+@author: Jiang
+"""
+from spacy.symbols import VERB
+from collections import Counter
+import requests
+import re
+from bs4 import BeautifulSoup
+
+def download_top_100():
+   
+    base_url = 'http://sailor.gutenberg.lib.md.us/'#base_url = 'http://www.gutenberg.myebook.bg/'
+    response = requests.get('http://www.gutenberg.org/browse/scores/top')
+    soup = BeautifulSoup(response.text, "html.parser")
+    h_tag = soup.find(id='books-last30')
+    ol_tag = h_tag.next_sibling.next_sibling
+    for a_tag in ol_tag.find_all('a'):
+        m = re.match(r'(.*)(\(\d+\))', a_tag.text)
+        book_name = m.group(1).strip()
+        m = re.match(r'/ebooks/(\d+)', a_tag.get('href'))
+        book_id = m.group(1)
+        # ugh, I know this is ugly.
+        url = base_url + '/'.join(list(book_id[:-1])) + '/' + book_id + '/' + book_id + '.txt'
+        r = requests.get(url)
+        file_name = 'C:/'+'books/' + book_name + '.txt'
+        if r.status_code == requests.codes.ok:
+            print ('Downloaded... ', file_name)
+            with open(file_name, 'wb') as f:
+                f.write(r.text.encode('UTF-8'))
+        else:
+            print ('Failed for ', book_id)
+
+download_top_100()  #download top 100 books from web
+
+data_file=open('C:/books/Pride and Prejudice by Jane Austen.txt').read()
+
+print(data_file)
+    
+import spacy
+nlp = spacy.load("en_core_web_lg")
+text = str(data_file)
+doc = nlp(text)
+
+num_tokens = 0    #the number of token  (Q1)----155450
+for token in doc:
+    num_tokens = num_tokens + 1
+print(str(num_tokens)) 
+
+num_verbs = 0     #the number of verb    (Q2)----17785
+for token in doc:
+    if token.pos == VERB:
+        num_verbs = num_verbs + 1
+print(str(num_verbs))
+
+labels = [x.label_ for x in doc.ents]     
+Counter(labels).most_common(1)
+items = [x.text for x in doc.ents]   #the most frequent named entity  (Q3)----('Elizabeth', 614)
+Counter(items).most_common(1)
+
+num_sent = 0      #the number of sentence   (Q4)------7217
+for sent in doc.sents:
+     num_sent = num_sent + 1
+print(str(num_sent))
+
+sent_doc={}      #the most similar sentence   (Q5)
+sent_simi={}
+i=0
+similarity_list=[]
+for sentence in doc.sents:
+    
+    sentences=sentence.string.strip()
+        
+    sentence_count=sentences.count(" ")
+    if(sentence_count)>10:
+        i=i+1
+        sent_doc.update({i:sentence})
+#print(i)        
+for key in sent_doc.keys():
+    T_S=sent_doc.get(key)
+    j=i
+    #print(j)
+    #print(T_S.string)
+    #print(key)
+    #print(sent_doc.get(key).similarity(sent_doc.get(key+1)))
+    while(j>key):
+        similarity_list.append(T_S.similarity(sent_doc.get(j)))
+        
+        dict_key=str(key)+"-"+str(j)
+        
+        
+        sent_simi.update({dict_key:T_S.similarity(sent_doc.get(j))})
+        j=j-1
+        #print(similarity_list)
+#print(sent_simi)        
+sorted_simil=sorted(similarity_list,reverse=True)
+for key in sent_simi.keys():
+    value=sent_simi.get(key)
+    #print(value)
+    if value==sorted_simil[0]:
+        #print("sentences which are quite similar is "+str(key))
+        print("Similariy value is :"+str(value))
+        sentence_number=key.split("-")
+        
+        print ("Sentence 1 " + ": ")
+        print(sent_doc.get(int(sentence_number[0])))
+        print ("Sentence 2" + ": ")
+        print(sent_doc.get(int(sentence_number[1])))
+        
+        
+i=1     #the vector representation of the first word in the 15th sentence Q6
+for sentence in doc.sents:
+    
+
+    if num_sent==i or i==15:
+        for token in sentence:
+            if(token.is_alpha):
+                print(token.text,token.has_vector,token.vector,token.vector_norm) 
+                break
+            
+    i=i+1
+"""
+Q5:
+Similariy value is :0.98777425
+Sentence 1 : 
+The possibility of Mr. Collins's fancying himself in love with her
+friend had once occurred to Elizabeth within the last day or two; but
+that Charlotte could encourage him seemed almost as far from
+possibility as she could encourage him herself, and her astonishment was
+consequently so great as to overcome at first the bounds of decorum, and
+she could not help crying out:
+
+
+Sentence 2: 
+She had once or twice suggested to Elizabeth the possibility of his
+being partial to her, but Elizabeth always laughed at the idea; and Mrs.
+Collins did not think it right to press the subject, from the danger of
+raising expectations which might only end in disappointment; for in her
+opinion it admitted not of a doubt, that all her friend's dislike would
+vanish, if she could suppose him to be in her power.
+
+Q6:6.508804
