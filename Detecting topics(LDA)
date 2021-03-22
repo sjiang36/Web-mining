@@ -1,0 +1,137 @@
+om sklearn.externals import joblib 
+from sklearn.decomposition import LatentDirichletAllocation
+#==============================================================================
+import pandas as pd
+import numpy as np
+#==============================================================================
+import nltk
+from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
+from nltk.stem.porter import PorterStemmer
+# #==============================================================================
+import glob#
+import os
+import re
+import string
+
+filepath_p = 'enwiki-20170820-pages-articles.xls'
+n_top_words = n_topic = 20
+n_features = 2500
+
+
+def stopwordslist(filepath='./stopwords.txt'):
+    stopwords = [line.strip() for line in open(filepath, 'r', encoding='utf-8').readlines()]#line.strip()
+    stopwords.append(' ')
+    return stopwords
+
+
+
+def seg_sentence(sentence):
+    sentence_seged = nltk.word_tokenize(str(sentence).strip())#nlkt     #list
+    outstr = ''
+    for word in sentence_seged:
+        lemmatizer=WordNetLemmatizer()                        #nlkt
+        word = lemmatizer.lemmatize(word.lower().strip()) 
+        outstr += word
+        outstr += " " 
+        stopwords = stopwordslist() 
+        if word not in stopwords:
+                if word != '\t':
+                    outstr += word
+                    outstr += " "     
+    return outstr
+
+
+def gen_data(path):
+    data = pd.read_excel(path)
+    texts = []
+    for i, text in enumerate(data['review']):
+        text = seg_sentence(text)
+        texts.append(text)#list
+        
+    return texts
+    
+
+
+texts = gen_data(filepath_p)
+
+with open("ldaPre_FilePath.txt", 'w') as f:
+    for line in texts:
+        f.write(line+'\n')
+
+#CountVectorizer
+#==============================================================================
+
+tf_vectorizer = CountVectorizer(max_df=0.95, min_df=2,
+                                max_features=n_features,
+                               stop_words='english'
+                               )
+tf = tf_vectorizer.fit_transform(texts)
+joblib.dump(tf_vectorizer,"tf_ModelPath")
+
+
+
+texts = []
+with open("ldaPre_FilePath.txt", 'r') as f:
+   for line in f.readlines():
+       if line != '':
+           texts.append(line.strip())
+#==============================================================================
+
+tf_vectorizer = joblib.load("tf_ModelPath")
+tf = tf_vectorizer.fit_transform(texts)
+
+#LDA
+lda = LatentDirichletAllocation(n_topics=n_topic, 
+                                max_iter=50,
+                                learning_method='batch',
+                               n_jobs=-1)
+lda.fit(tf) #tf即为Document_word Sparse Matrix              
+
+def print_top_words(model, feature_names, n_top_words):
+  
+    
+    with open("lda.txt", 'w') as f:
+
+        for topic_idx, topic in enumerate(model.components_):
+            print("Topic:",topic_idx)
+            print(" ".join([feature_names[i]for i in topic.argsort()[:-n_top_words - 1:-1]]))
+        
+            line = "Topic:"+str(topic_idx)
+            for i in topic.argsort()[:-n_top_words - 1:-1]:
+                line += " "
+                line +=str(feature_names[i])
+            f.write(line+'\n')
+        
+    
+    print(model.components_)
+
+
+
+tf_feature_names = tf_vectorizer.get_feature_names()
+
+print_top_words(lda, tf_feature_names, n_top_words)
+
+print("begin predict...")
+
+for xls in glob.glob("./predict/*"):
+    
+        texts = gen_data(xls)
+        
+        tf_vectorizer = CountVectorizer(max_df=0.95, min_df=2,
+                                max_features=n_features,
+                                stop_words='english'
+                                )
+
+        doc_vec = tf_vectorizer.fit_transform(texts)
+        
+        docres = lda.transform(doc_vec)
+        pred_y = []
+
+        for i in range(docres.shape[0]):
+            pred_y.append(int(np.argmax(docres[i])))
+
+        pred_y = np.array(pred_y)
+        data = pd.read_excel(xls)
+        data['LDA'] = pred_y
+        data.to_excel(xls.replace("predict", "result"), index=False)
