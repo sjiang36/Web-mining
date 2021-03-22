@@ -1,0 +1,67 @@
+# Extracting information from a page
+
+# write a program that scapes the Wikipedia list of top-level domains and writes a CSV file that contains 
+all the top-level domains and whether their "example" second-level domain resolves to an address that 
+returns an HTTP responses.
+
+
+
+from bs4 import BeautifulSoup
+import requests
+
+url = "https://en.m.wikipedia.org/wiki/List_of_Internet_top-level_domains"
+
+r = requests.get(url)
+
+soup = BeautifulSoup(r.content, 'html.parser')
+tbs = soup.find_all('table', class_='wikitable')
+
+domains = []
+for tb in tbs:
+    for row in tb.find_all('tr'):
+        cols = row.find_all('td')
+        if len(cols) == 0:
+            continue  
+        name = cols[0].get_text()
+
+        if name.startswith('.'):
+            domains.append(name)
+        else:
+            name = cols[1].get_text()
+            if not name.startswith('.'):
+                continue
+            domains.append(name)
+            
+        if '[' in domains[-1]:
+            domains[-1] = domains[-1].split('[')[0]
+            
+            
+urls = ['http://www.example' + d for d in domains]
+
+from tqdm import tqdm
+
+valid = [None for i in range(len(urls))]
+scode = [None for i in range(len(urls))]
+for i, url in enumerate(tqdm(urls)):
+    try:
+        r = requests.get(url)
+        scode[i] = r.status_code
+        if r.status_code == 200:
+            valid[i] = True
+        else:
+            valid[i] = False
+        
+    except (requests.ConnectionError, requests.HTTPError, requests.exceptions.InvalidURL):
+        valid[i] = False
+        
+import pandas as pd
+
+df = pd.DataFrame({
+    'domain': domains,
+    'url': urls,
+    'valid': valid,
+    'status_code': scode
+})
+df['status_code'] = df['status_code'].apply(lambda x: "{:.0f}".format(x))
+
+df.to_csv("result.csv", index=False)
