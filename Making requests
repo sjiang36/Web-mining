@@ -1,0 +1,24 @@
+# A Google search for the term "Tim Berners-Lee".
+
+import requests
+payload = {'key1': 'Tim Berners-Lee'}
+r = requests.get("https://www.google.com/search", params=payload)
+print(r.text)
+print(r.status_code)
+print(r.headers)
+
+# A POST request to a website that does not accept POST requests
+import requests
+payload = {'key1': 'value1', 'key2': 'value2'}
+r = requests.post("http://www.google.com/post", data=payload)
+print(r.text)
+print(r.status_code)
+print(r.headers)
+
+#A request to a URL that does not exist.
+import requests
+payload = {'key1': 'How to use python'}
+r = requests.get("https://www.jiangsiqikk.com/get", params=payload)
+print(r.text)
+print(r.status_code)
+print(r.headers)
