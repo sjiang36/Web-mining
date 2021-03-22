@@ -1,0 +1,95 @@
+#crawl the Stevens website looking for Stevens email addresses, creating a text file with one email address per line, 
+while also storing all the page you visit. Upload the list of email addresses.
+
+
+import queue
+import re
+from urllib.parse import urlparse
+from urllib.parse import urljoin
+
+from bs4 import BeautifulSoup
+import requests 
+from selenium import webdriver
+from urllib.robotparser import RobotFileParser
+import os
+from time import sleep
+
+
+def is_absolute(url):
+    """Determine whether URL is absolute."""
+    return bool(urlparse(url).netloc)
+
+def save_page(page_url, page_content):
+    page_url = page_url.replace("https://", "").replace("http://", "")
+    page_url = page_url.strip('/')
+    parts = page_url.split("/")
+    if len(parts) == 1:
+        page_file_path = page_url
+        page_filename = 'index.html'
+    else:
+        page_file_path = '/'.join(parts[:-1])
+        page_filename = parts[-1] + '.html'
+
+    try:
+        original_umask = os.umask(0)
+        if not os.path.exists(page_file_path):
+            os.makedirs(page_file_path, 0o777)
+        with open(page_file_path + '/' + page_filename, "w", encoding='utf-8') as fp:
+            fp.write(page_content)
+        print(f"Written {page_file_path + '/' + page_filename}")
+    finally:
+        os.umask(original_umask)
+    return
+
+
+options = webdriver.ChromeOptions()
+# options.add_argument("headless")
+driver = webdriver.Chrome(options=options)
+user_agent = driver.execute_script("return navigator.userAgent;")
+
+email_addresses = []
+visited = set()
+
+q = queue.Queue()
+q.put("https://www.stevens.edu/")
+
+robot_parser = RobotFileParser("https://www.stevens.edu/robots.txt")
+robot_parser.read()
+
+for i in range(10):
+    url = q.get()
+    print(i, "url: ", url)
+
+    # r = requests.get(url)
+    # if i >= 1 and (not robot_parser.can_fetch("*", url)):  # I can't explain why can_fetch always return False
+    #     continue
+    sleep(0.5)
+    driver.get(url)
+
+    soup = BeautifulSoup(driver.page_source, 'html.parser')
+    visited.add(url)
+    save_page(url, driver.page_source)
+
+
+    # Extract all email addresses.
+    # print(soup.get_text())
+    email_addresses += re.findall("\S+@stevens.edu", soup.get_text())
+    email_addresses = list(set(email_addresses))
+
+    links = soup.find_all('a')
+    for link in links:
+        u = link.get('href')
+        if not is_absolute(u):
+            u = urljoin(url, u)
+        if ("stevens.edu" in u) and (u not in visited) and ('#' not in u):
+            q.put(u)
+
+    print("Queue size: {}".format(q.qsize()))
+    print("# email addresses: {}".format(len(email_addresses)))
+
+with open("email.txt", "w+") as f:
+    for e in email_addresses:
+        f.write(e + "\n")
+
+if __name__ == '__main__':
+    pass
