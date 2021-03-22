@@ -1,0 +1,14 @@
+import networkx as nx
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+G1 = nx.Graph()
+data_file=open('C:/660/web-BerkStan.txt','r')
+for line in data_file.readlines():
+    N1,N2 = line.strip().split(' ')
+    print(N1,N2)
+    G1.add_edge(N1,N2)
+    nx.draw_networkx(G1)
+    
+graph_page_rank = nx.pagerank(G1)
